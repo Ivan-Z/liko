@@ -7,7 +7,16 @@
 
 struct termios orig_termios;
 
+// Key Mappings
+#define CTRL_KEY(k) ((k) & 0x1f)
+
+// Terminal control 
 void die(const char* s) {
+	// Clear entire screen
+	write(STDOUT_FILENO, "\x1b[2J", 4);
+	// Move cursor to top left
+	write(STDOUT_FILENO, "\x1b[H", 3);
+
 	perror(s);
 	exit(1);
 }
@@ -60,20 +69,55 @@ void enable_raw_mode() {
 		die("tcsetattr");
 }
 
+char editor_read_key() {
+  char c;
+  int nread = read(STDIN_FILENO, &c, 1);
+  if (nread == -1 && errno != EAGAIN)
+	  die("read");
+  return c;
+}
+
+void editor_process_keypress() {
+	char c = editor_read_key();
+
+	switch (c) {
+		case CTRL_KEY('q'): {
+			// Clear entire screen
+			write(STDOUT_FILENO, "\x1b[2J", 4);
+			// Move cursor to top left
+			write(STDOUT_FILENO, "\x1b[H", 3);
+
+			exit(0);
+			break;
+		}
+	};
+}
+
+void editor_draw_rows() {
+	for (int y = 0; y < 24; y++) {
+		write(STDOUT_FILENO, "~\r\n", 3);
+	}
+}
+
+void editor_refresh_screen() {
+	// Clear entire screen
+	write(STDOUT_FILENO, "\x1b[2J", 4);
+	// Move cursor to top left
+	write(STDOUT_FILENO, "\x1b[H", 3);
+
+	editor_draw_rows();
+
+	// Move cursor to top left
+	write(STDOUT_FILENO, "\x1b[H", 3);
+}
+
+// Main
 int main() {
 	enable_raw_mode();
 
 	while (1) {
-		char c = '\0';
-		if (read(STDIN_FILENO, &c, 1) == -1 && errno != EAGAIN)
-			die("read");
-
-		if (iscntrl(c)) {
-			printf("%d \r\n", c);
-		} else {
-			printf("%d %c \r\n", c, c);
-		} 
-		if (c == 'q') break;
+		editor_refresh_screen();
+		editor_process_keypress();
 	}
 
 	return 0;
